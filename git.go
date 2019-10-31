@@ -118,15 +118,15 @@ func extractFiles(reference plumbing.Hash, config RuntimeConfig) error {
 	tree.Files().ForEach(func(file *object.File) error {
 		wg.Add(1)
 
-		go func(file *object.File, config RuntimeConfig) {
+		go func(file *object.File, workingDirectory string) {
 			defer wg.Done()
 
-			err := extractFile(file, config.workingDirectory)
+			err := extractFile(file, workingDirectory)
 
 			if err != nil {
 				log.Println(err)
 			}
-		}(file, config)
+		}(file, config.workingDirectory)
 
 		return nil
 	})
