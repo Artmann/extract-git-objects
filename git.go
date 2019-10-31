@@ -6,12 +6,18 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sync"
 
+	"github.com/nozzle/throttler"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
+
+type File struct {
+	hash   string
+	name   string
+	reader io.ReadCloser
+}
 
 func getReferences(repositoryPath string) ([]plumbing.Hash, error) {
 	references := make([]plumbing.Hash, 0)
@@ -41,11 +47,11 @@ func getReferences(repositoryPath string) ([]plumbing.Hash, error) {
 	return references, nil
 }
 
-func extractFile(name string, hash string, reader io.ReadCloser, workingDirectory string) error {
-	runes := []rune(hash)
+func extractFile(f File, config RuntimeConfig) error {
+	runes := []rune(f.hash)
 
-	extension := filepath.Ext(name)
-	directory := path.Join(workingDirectory, "objects", string(runes[0:2]))
+	extension := filepath.Ext(f.name)
+	directory := path.Join(config.workingDirectory, "objects", string(runes[0:2]))
 	filePath := path.Join(directory, string(runes[2:])+extension)
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
@@ -70,7 +76,7 @@ func extractFile(name string, hash string, reader io.ReadCloser, workingDirector
 	}()
 
 	for {
-		n, err := reader.Read(buffer)
+		n, err := f.reader.Read(buffer)
 
 		if err != nil && err != io.EOF {
 			return err
@@ -107,44 +113,44 @@ func extractFiles(reference plumbing.Hash, config RuntimeConfig) error {
 		return err
 	}
 
-	var wg sync.WaitGroup
+	files := make(map[string]File)
 
-	processedHashes := make(map[string]bool, 0)
+	tree.Files().ForEach(func(f *object.File) error {
+		hash := f.Hash.String()
 
-	tree.Files().ForEach(func(file *object.File) error {
-		hash := file.Hash.String()
-
-		_, ok := processedHashes[hash]
+		_, ok := files[hash]
 
 		if ok {
 			return nil
 		}
 
-		wg.Add(1)
-
-		processedHashes[hash] = true
-
-		name := file.Name
-		reader, err := file.Blob.Reader()
+		name := f.Name
+		reader, err := f.Blob.Reader()
 
 		if err != nil {
-			return nil
+			return err
 		}
 
-		go func(name string, hash string, reader io.ReadCloser, workingDirectory string) {
-			defer wg.Done()
-
-			err := extractFile(name, hash, reader, workingDirectory)
-
-			if err != nil {
-				log.Println(err)
-			}
-		}(name, hash, reader, config.workingDirectory)
+		files[hash] = File{
+			hash:   hash,
+			name:   name,
+			reader: reader,
+		}
 
 		return nil
 	})
 
-	wg.Wait()
+	t := throttler.New(128, len(files))
+
+	for _, file := range files {
+		go func(f File, config RuntimeConfig) {
+			err := extractFile(f, config)
+
+			t.Done(err)
+		}(file, config)
+
+		t.Throttle()
+	}
 
 	return nil
 }
