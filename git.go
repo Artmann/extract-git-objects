@@ -115,8 +115,20 @@ func extractFiles(reference plumbing.Hash, config RuntimeConfig) error {
 
 	var wg sync.WaitGroup
 
+	processedHashes := make(map[string]bool, 0)
+
 	tree.Files().ForEach(func(file *object.File) error {
+		hash := file.Hash.String()
+
+		_, ok := processedHashes[hash]
+
+		if ok {
+			return nil
+		}
+
 		wg.Add(1)
+
+		processedHashes[hash] = true
 
 		go func(file *object.File, workingDirectory string) {
 			defer wg.Done()
