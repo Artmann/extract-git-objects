@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
-	"time"
 )
 
 type RuntimeConfig struct {
@@ -21,9 +19,7 @@ func main() {
 
 	repositoryPath := workingDirectory
 
-	start := time.Now()
 	referenceHashes, err := getReferences(repositoryPath)
-	fmt.Printf("%d ms", time.Since(start).Milliseconds())
 
 	config := RuntimeConfig{
 		repositoryPath:   repositoryPath,
@@ -36,11 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	log.Println(referenceHashes)
-
-	start = time.Now()
 	for _, reference := range referenceHashes {
 		extractFiles(reference, config)
 	}
-	fmt.Printf("%d ms", time.Since(start).Milliseconds())
 }
