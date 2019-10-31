@@ -41,10 +41,10 @@ func getReferences(repositoryPath string) ([]plumbing.Hash, error) {
 	return references, nil
 }
 
-func extractFile(file *object.File, workingDirectory string) error {
-	runes := []rune(file.Hash.String())
+func extractFile(name string, hash string, reader io.ReadCloser, workingDirectory string) error {
+	runes := []rune(hash)
 
-	extension := filepath.Ext(file.Name)
+	extension := filepath.Ext(name)
 	directory := path.Join(workingDirectory, "objects", string(runes[0:2]))
 	filePath := path.Join(directory, string(runes[2:])+extension)
 
@@ -53,12 +53,6 @@ func extractFile(file *object.File, workingDirectory string) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	reader, err := file.Blob.Reader()
-
-	if err != nil {
-		return err
 	}
 
 	buffer := make([]byte, 1024)
@@ -130,15 +124,22 @@ func extractFiles(reference plumbing.Hash, config RuntimeConfig) error {
 
 		processedHashes[hash] = true
 
-		go func(file *object.File, workingDirectory string) {
+		name := file.Name
+		reader, err := file.Blob.Reader()
+
+		if err != nil {
+			return nil
+		}
+
+		go func(name string, hash string, reader io.ReadCloser, workingDirectory string) {
 			defer wg.Done()
 
-			err := extractFile(file, workingDirectory)
+			err := extractFile(name, hash, reader, workingDirectory)
 
 			if err != nil {
 				log.Println(err)
 			}
-		}(file, config.workingDirectory)
+		}(name, hash, reader, config.workingDirectory)
 
 		return nil
 	})
