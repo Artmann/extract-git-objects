@@ -41,11 +41,11 @@ func getReferences(repositoryPath string) ([]plumbing.Hash, error) {
 	return references, nil
 }
 
-func extractFile(file *object.File, config RuntimeConfig) error {
+func extractFile(file *object.File, workingDirectory string) error {
 	runes := []rune(file.Hash.String())
 
 	extension := filepath.Ext(file.Name)
-	directory := path.Join(config.workingDirectory, "objects", string(runes[0:2]))
+	directory := path.Join(workingDirectory, "objects", string(runes[0:2]))
 	filePath := path.Join(directory, string(runes[2:])+extension)
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
@@ -121,7 +121,7 @@ func extractFiles(reference plumbing.Hash, config RuntimeConfig) error {
 		go func(file *object.File, config RuntimeConfig) {
 			defer wg.Done()
 
-			err := extractFile(file, config)
+			err := extractFile(file, config.workingDirectory)
 
 			if err != nil {
 				log.Println(err)
