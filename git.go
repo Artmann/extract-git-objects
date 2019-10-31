@@ -42,11 +42,6 @@ func getReferences(repositoryPath string) ([]plumbing.Hash, error) {
 }
 
 func extractFile(file *object.File, config RuntimeConfig) error {
-	/*
-		fmt.Println(file.Hash)
-		fmt.Println(file.Name)
-		fmt.Println(file.Blob)
-	*/
 	runes := []rune(file.Hash.String())
 
 	extension := filepath.Ext(file.Name)
